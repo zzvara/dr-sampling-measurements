@@ -209,7 +209,7 @@ object Baseline {
     val timeseries4K = () => {
       println("Loading TS4K.")
       ("TS4K", CSVReader
-        .open("C:\\Users\\Ehnalis\\Downloads\\sampling\\timeseries.csv")(new CSVFormat {
+        .open(args(0))(new CSVFormat {
           val delimiter: Char = '|'
           val quoteChar: Char = '"'
           val escapeChar: Char = '"'
@@ -236,7 +236,7 @@ object Baseline {
     val timeseriesSorted = () => {
       println("Loading TSS10.")
       ("TSS10", Source
-        .fromFile("C:\\Users\\Ehnalis\\Downloads\\sampling\\timeseries-sorted-increasing.csv")
+        .fromFile(args(1))
         .getLines()
         .filter { _ =>
           i += 1
@@ -254,7 +254,7 @@ object Baseline {
     val timeseriesRerverse = () => {
       println("Loading TSR10.")
       ("TSR10", Source
-        .fromFile("C:\\Users\\Ehnalis\\Downloads\\sampling\\timeseries-sorted-increasing.csv")
+        .fromFile(args(1))
         .getLines()
         .filter { _ =>
           i += 1
