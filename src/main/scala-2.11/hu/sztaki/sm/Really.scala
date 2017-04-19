@@ -20,7 +20,7 @@ object Really {
 
     val sortedResults =
       context.textFile(
-        "C:\\Users\\Ehnalis\\Projects\\dr-sampling-measurements\\measurements-2.txt", 50
+        args(0), 50
       )
       .filter(_.startsWith("{"))
       .map {
