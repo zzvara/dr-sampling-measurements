@@ -12,12 +12,19 @@ import scala.scalajs.js.annotation.JSExport
 import scala.util.{Failure, Success}
 import scalatags.Text.all._
 
-
 @JSExport
 case class Conceptier(
   override val K: Int,
   override val dataset: String,
   configuration: Configuration.Conceptier,
+  override val results: List[Result])
+extends Record(K, dataset, results)
+
+@JSExport
+case class Naiv(
+  override val K: Int,
+  override val dataset: String,
+  configuration: Configuration.Naive,
   override val results: List[Result])
 extends Record(K, dataset, results)
 
@@ -42,7 +49,7 @@ case class Result(
   width: List[Int],
   histogram: Map[String, Double])
 
-class Record(val K: Int, val dataset: String, val results: List[Result])
+class Record(val K: Int, val dataset: String, val results: List[Result]) extends Serializable
 
 @JSExport
 object Renderer extends JSApp {
@@ -189,19 +196,21 @@ object Renderer extends JSApp {
     }
 
     Ajax.get(
-      url = "/dr-sampling-measurements/measurements.txt",
-      headers = Map("Content-Type" -> "application/json; charset=UTF-8"),
-      responseType = "text; charset=UTF-8"
+      url = "/dr-sampling-measurements/measurements-1.txt",
+      headers = Map("Content-Type" -> "text; charset=UTF-8"),
+      responseType = "text"
     )
     .onComplete {
       case Success(success) =>
         dom.console.log("Loaded.")
+        dom.console.log(success.responseText.size)
         parseAndRender(success.responseText)
       case Failure(failure) =>
         dom.console.log(failure.getCause.getMessage)
         scalajs.dom.window.alert(failure.getCause.getMessage)
     }
   }
+
 
   def error(histogram: Map[String, Double], reference: Seq[(Any, BigDecimal)]): BigDecimal = {
     val currentTopK =

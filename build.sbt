@@ -31,3 +31,9 @@ libraryDependencies += "org.scalanlp" % "breeze_2.11" % "0.13"
 libraryDependencies += "org.json4s" %% "json4s-native" % "3.5.1"
 
 libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.5.1"
+
+dependencyOverrides ++= Set(
+  "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.5",
+  "com.fasterxml.jackson.core" % "jackson-core" % "2.6.5",
+  "com.fasterxml.jackson.core" % "jackson-annotations" % "2.6.5"
+)
