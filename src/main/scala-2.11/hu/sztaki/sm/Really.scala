@@ -196,6 +196,22 @@ object Really {
                             td((errors.sum / errors.length).toString),
                             td(errors.min.toString)
                           )
+                        case l: Naiv =>
+                          val errors = l.results.map(_.histogram).map {
+                            h => Renderer.error(h, normedEtalon)
+                          }
+                          tr(
+                            td(l.configuration.toString),
+                            td(l.results.map(_.runtime).max),
+                            td(l.results.map(_.runtime).sum / l.results.length),
+                            td(l.results.map(_.runtime).min),
+                            td(l.results.map(r => if (r.width.nonEmpty) r.width.max else -1).max),
+                            td("?"),
+                            td(l.results.map(r => if (r.width.nonEmpty) r.width.min else Int.MaxValue).min),
+                            td(errors.max.toString),
+                            td((errors.sum / errors.length).toString),
+                            td(errors.min.toString)
+                          )
                       }.toList
                     }.toList
                   }
