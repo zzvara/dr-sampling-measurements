@@ -243,7 +243,7 @@ object Baseline {
           i % 10 == 0
         }.map {
         _.drop(1).dropRight(1).split(",")(0)
-      }
+        }
         .toList)
     }
 
@@ -261,7 +261,7 @@ object Baseline {
           i % 10 == 0
         }.map {
         _.drop(1).dropRight(1).split(",")(0)
-      }
+        }
         .toList
         .reverse)
     }
@@ -283,14 +283,14 @@ object Baseline {
       */
     val zipfians = {
       for (
-        exponent <- List(1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 5.0);
-        cardinality <- List(10, 100, 1000)
+        exponent <- 0.5 to 3.5 by 0.1;
+        cardinality <- List(1000)
       ) yield {
         () => {
           println("Loading ZIPFXX.")
           var numberOfEvents = 0
           val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
-          (s"ZIPF-$exponent-${cardinality}M", scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
+          (s"ZIPF-$exponent", scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
             _ =>
               if (numberOfEvents < 1000 * 1000 * 4) {
                 val zipfian = zipf.sample()
@@ -301,6 +301,32 @@ object Baseline {
                 Iterator.empty
               }
           }).toList)
+        }
+      }
+    }
+
+    val drifted = {
+      for (
+        exponent <- 0.5 to 3.5 by 0.5;
+        cardinality <- List(1000)
+      ) yield {
+        () => {
+          println("Loading ZIPFXX.")
+          var numberOfEvents = 0
+          val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
+          (s"DRIFTED-ZIPF-$exponent",
+            { (1 to 4).map{ _ => scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
+              _ =>
+                if (numberOfEvents < 1000 * 1000) {
+                  val zipfian = zipf.sample()
+                  numberOfEvents += zipfian
+                  val randomString = RandomStringUtils.randomAlphabetic(32)
+                  Iterator((1 to zipfian).map(_ => randomString))
+                } else {
+                  Iterator.empty
+                }
+            })
+          }}.toList)
         }
       }
     }
@@ -319,8 +345,9 @@ object Baseline {
       * Measurements.
       */
     for (
-      K <- List(20, 50, 100, 250, 500, 1000);
-      generator <- List(timeseries4K, timeseriesSorted, timeseriesRerverse, random) ++ zipfians
+      K <- (25 to 500 by 25);
+      generator <- List(timeseries4K, timeseriesSorted, timeseriesRerverse, random)
+        ++ zipfians ++ drifted
     ) {
       println(s"K equals to [$K].")
       /**
@@ -359,8 +386,8 @@ object Baseline {
       /**
         * Running Lossys.
         */
-      for (frequency <- List(0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001);
-           error <- List(0, 0.1, 0.01, 0.001, 0.0001, 0.00001)) {
+      for (frequency <- List(0.1, 0.001, 0.00001, 0.0000001);
+           error <- List(0, 0.01, 0.0001, 0.00001)) {
         val lossy = run(events, Configuration.Lossy(frequency, error), 1, RUNS).drop(DROP)
 
         println("Current Lossy stats:")
@@ -397,9 +424,9 @@ object Baseline {
         * Running Conceptiers.
         */
       val backoffedConceptier = for (
-        sizeBoundary <- (5 * K) to (80 * K) by (10 * K);
-        driftHistoryWeight <- 0.2 to 0.8 by 0.3;
-        backoff <- List(1.05, 1.2, 1.5)
+        sizeBoundary <- (5 * K) to (75 * K) by (10 * K);
+        driftHistoryWeight <- List(0.5);
+        backoff <- List(1.2)
       ) yield {
         val set = run(events, Configuration.Conceptier(
           take = K,
@@ -506,8 +533,8 @@ object Baseline {
         * Running Naives.
         */
       for (
-        sizeBoundary <- (5 * K) to (80 * K) by (10 * K);
-        backoff <- List(1.05, 1.2, 1.5)
+        sizeBoundary <- (5 * K) to (75 * K) by (10 * K);
+        backoff <- List(1.2)
       ) yield {
         val set = run(events, Configuration.Naive(
           take = K,
