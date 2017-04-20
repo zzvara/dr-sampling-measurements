@@ -288,11 +288,19 @@ object Baseline {
       ) yield {
         () => {
           println("Loading ZIPFXX.")
+          var numberOfEvents = 0
           val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
-          (s"ZIPF-${exponent}M-$cardinality", (1 to (1000 * 1000 * 4)).map {
+          (s"ZIPF-$exponent-${cardinality}M", scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
             _ =>
-              zipf.sample().toString
-          }.toList)
+              if (numberOfEvents < 1000 * 1000 * 4) {
+                val zipfian = zipf.sample()
+                numberOfEvents += zipfian
+                val randomString = RandomStringUtils.randomAlphabetic(32)
+                Iterator((1 to zipfian).map(_ => randomString))
+              } else {
+                Iterator.empty
+              }
+          }).toList)
         }
       }
     }
