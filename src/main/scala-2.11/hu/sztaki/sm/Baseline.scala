@@ -298,7 +298,7 @@ object Baseline {
                 numberOfEvents += zipfian
                 val randomString = key.toString
                 key += 1
-                Iterator((1 to zipfian).map(_ => randomString))
+                (1 to zipfian).map(_ => randomString).toIterator
               } else {
                 Iterator.empty
               }
