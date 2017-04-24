@@ -303,7 +303,7 @@ object Baseline {
                 Iterator.empty
               }
           }).toList)
-		  println(s"Size of data is [${data.size}].")
+		  println(s"Size of data is [${data._2.size}].")
 		  data
         }
       }
