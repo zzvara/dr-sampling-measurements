@@ -320,7 +320,7 @@ object Baseline {
                 if (numberOfEvents < 1000 * 1000) {
                   val zipfian = zipf.sample()
                   numberOfEvents += zipfian
-                  val randomString = RandomStringUtils.randomAlphabetic(32)
+                  val randomString = RandomStringUtils.randomAlphabetic(10)
                   Iterator((1 to zipfian).map(_ => randomString))
                 } else {
                   Iterator.empty
@@ -386,8 +386,8 @@ object Baseline {
       /**
         * Running Lossys.
         */
-      for (frequency <- List(0.1, 0.001, 0.00001, 0.0000001);
-           error <- List(0, 0.01, 0.0001, 0.00001)) {
+      for (frequency <- List(0.1, 0.001, 0.0001, 0.00001);
+           error <- List(0, 0.01, 0.001, 0.0001)) {
         val lossy = run(events, Configuration.Lossy(frequency, error), 1, RUNS).drop(DROP)
 
         println("Current Lossy stats:")
