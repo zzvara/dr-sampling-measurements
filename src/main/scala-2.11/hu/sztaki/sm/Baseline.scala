@@ -352,8 +352,7 @@ object Baseline {
       */
     for (
       K <- (25 to 500 by 25);
-      generator <- List(timeseries4K, timeseriesSorted, timeseriesRerverse, random)
-        ++ zipfians ++ drifted
+      generator <- zipfians ++ List(timeseries4K, timeseriesSorted, timeseriesRerverse, random) ++ drifted
     ) {
       println(s"K equals to [$K].")
       /**
