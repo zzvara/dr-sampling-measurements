@@ -290,12 +290,14 @@ object Baseline {
           println("Loading ZIPFXX.")
           var numberOfEvents = 0
           val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
+          var key = 0
           (s"ZIPF-$exponent", scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
             _ =>
               if (numberOfEvents < 1000 * 1000 * 4) {
                 val zipfian = zipf.sample()
                 numberOfEvents += zipfian
-                val randomString = RandomStringUtils.randomAlphabetic(8)
+                val randomString = key.toString
+                key += 1
                 Iterator((1 to zipfian).map(_ => randomString))
               } else {
                 Iterator.empty
@@ -314,13 +316,15 @@ object Baseline {
           println("Loading ZIPFXX.")
           var numberOfEvents = 0
           val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
+          var key = 0
           (s"DRIFTED-ZIPF-$exponent",
             { (1 to 4).map{ _ => scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
               _ =>
                 if (numberOfEvents < 1000 * 1000) {
                   val zipfian = zipf.sample()
                   numberOfEvents += zipfian
-                  val randomString = RandomStringUtils.randomAlphabetic(8)
+                  val randomString = key.toString
+                  key += 1
                   (1 to zipfian).map(_ => randomString).toIterator
                 } else {
                   Iterator.empty
