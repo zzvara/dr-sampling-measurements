@@ -295,7 +295,7 @@ object Baseline {
               if (numberOfEvents < 1000 * 1000 * 4) {
                 val zipfian = zipf.sample()
                 numberOfEvents += zipfian
-                val randomString = RandomStringUtils.randomAlphabetic(32)
+                val randomString = RandomStringUtils.randomAlphabetic(8)
                 Iterator((1 to zipfian).map(_ => randomString))
               } else {
                 Iterator.empty
@@ -320,7 +320,7 @@ object Baseline {
                 if (numberOfEvents < 1000 * 1000) {
                   val zipfian = zipf.sample()
                   numberOfEvents += zipfian
-                  val randomString = RandomStringUtils.randomAlphabetic(10)
+                  val randomString = RandomStringUtils.randomAlphabetic(8)
                   Iterator((1 to zipfian).map(_ => randomString))
                 } else {
                   Iterator.empty
