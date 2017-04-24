@@ -321,7 +321,7 @@ object Baseline {
                   val zipfian = zipf.sample()
                   numberOfEvents += zipfian
                   val randomString = RandomStringUtils.randomAlphabetic(8)
-                  Iterator((1 to zipfian).map(_ => randomString))
+                  (1 to zipfian).map(_ => randomString).toIterator
                 } else {
                   Iterator.empty
                 }
