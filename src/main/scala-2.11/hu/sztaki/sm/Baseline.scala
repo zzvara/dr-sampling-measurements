@@ -300,7 +300,7 @@ object Baseline {
               key += 1
               myList = myList ++ List.fill(zipfian)(randomString)
             }
-            myList
+            scala.util.Random.shuffle(myList)
           })
           println(s"Size of data is [${data._2.size}].")
           data
