@@ -291,20 +291,19 @@ object Baseline {
           var numberOfEvents = 0
           val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
           var key = 0
-          val data = (s"ZIPF-$exponent", scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
-            _ =>
-              if (numberOfEvents < 1000 * 1000 * 4) {
-                val zipfian = zipf.sample()
-                numberOfEvents += zipfian
-                val randomString = key.toString
-                key += 1
-                (1 to zipfian).map(_ => randomString).toIterator
-              } else {
-                Iterator.empty
-              }
-          }).toList)
-		  println(s"Size of data is [${data._2.size}].")
-		  data
+          var myList = List.empty[String]
+          val data = (s"ZIPF-$exponent", {
+            while (numberOfEvents < 4000000) {
+              val zipfian = zipf.sample()
+              numberOfEvents += zipfian
+              val randomString = key.toString
+              key += 1
+              myList = myList ++ List.fill(zipfian)(randomString)
+            }
+            myList
+          })
+          println(s"Size of data is [${data._2.size}].")
+          data
         }
       }
     }
