@@ -289,7 +289,7 @@ object Baseline {
         () => {
           println("Loading ZIPFXX.")
           var numberOfEvents = 0
-          val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
+          val zipf = new ZipfDistribution(cardinality * 100, exponent)
           var key = 0
           var myList = List.empty[String]
           val data = (s"ZIPF-$exponent", {
@@ -316,7 +316,7 @@ object Baseline {
         () => {
           println("Loading ZIPFXX.")
           var numberOfEvents = 0
-          val zipf = new ZipfDistribution(1000 * 1000 * cardinality, exponent)
+          val zipf = new ZipfDistribution(100 * cardinality, exponent)
           var key = 0
           (s"DRIFTED-ZIPF-$exponent",
             { (1 to 4).map{ _ => scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
