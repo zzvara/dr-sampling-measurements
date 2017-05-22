@@ -283,7 +283,7 @@ object Baseline {
       */
     val zipfians = {
       for (
-        exponent <- 0.5 to 3.5 by 0.1;
+        exponent <- 1.0 to 3.0 by 0.2;
         cardinality <- List(1000)
       ) yield {
         () => {
@@ -310,7 +310,7 @@ object Baseline {
 
     val drifted = {
       for (
-        exponent <- 0.5 to 3.5 by 0.5;
+        exponent <- 1.0 to 3.0 by 0.2;
         cardinality <- List(1000)
       ) yield {
         () => {
