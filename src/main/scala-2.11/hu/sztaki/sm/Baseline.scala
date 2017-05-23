@@ -287,10 +287,10 @@ object Baseline {
         cardinality <- List(1000)
       ) yield {
         () => {
-          println("Loading ZIPFXX.")
           var numberOfEvents = 0
           val zipf = new ZipfDistribution(cardinality * 100, exponent)
           var key = 0
+          println(s"Loading ZIPF-$exponent.")
           var myList = List.empty[String]
           val data = (s"ZIPF-$exponent", {
             while (numberOfEvents < 4000000) {
@@ -314,7 +314,7 @@ object Baseline {
         cardinality <- List(1000)
       ) yield {
         () => {
-          println("Loading ZIPFXX.")
+          println(s"Loading ZIPF-$exponent.")
           var numberOfEvents = 0
           val zipf = new ZipfDistribution(100 * cardinality, exponent)
           var key = 0
