@@ -9,6 +9,7 @@ import org.apache.commons.math3.distribution.ZipfDistribution
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
+import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
 object Baseline {
@@ -291,16 +292,17 @@ object Baseline {
           val zipf = new ZipfDistribution(cardinality * 100, exponent)
           var key = 0
           println(s"Loading ZIPF-$exponent.")
-          var myList = List.empty[String]
+          val myList = ArrayBuffer.empty[String]
           val data = (s"ZIPF-$exponent", {
             while (numberOfEvents < 4000000) {
               val zipfian = zipf.sample()
               numberOfEvents += zipfian
               val randomString = key.toString
               key += 1
-              myList = myList ++ List.fill(zipfian)(randomString)
+              myList ++= List.fill[String](zipfian)(randomString)
             }
-            scala.util.Random.shuffle(myList)
+            println("Created.")
+            scala.util.Random.shuffle(myList).toList
           })
           println(s"Size of data is [${data._2.size}].")
           data
