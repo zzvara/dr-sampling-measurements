@@ -317,22 +317,23 @@ object Baseline {
       ) yield {
         () => {
           println(s"Loading ZIPF-$exponent.")
-          var numberOfEvents = 0
           val zipf = new ZipfDistribution(100 * cardinality, exponent)
           var key = 0
           (s"DRIFTED-ZIPF-$exponent",
-            { (1 to 4).map{ _ => scala.util.Random.shuffle((1 to (1000 * 1000 * 4)).flatMap {
-              _ =>
-                if (numberOfEvents < 1000 * 1000) {
-                  val zipfian = zipf.sample()
-                  numberOfEvents += zipfian
-                  val randomString = key.toString
-                  key += 1
-                  (1 to zipfian).map(_ => randomString).toIterator
-                } else {
-                  Iterator.empty
+            { (1 to 4).flatMap { _ => scala.util.Random.shuffle({
+                var numberOfEvents = 0
+                (1 to (1000 * 1000)).flatMap { _ =>
+                  if (numberOfEvents < 1000 * 1000) {
+                    val zipfian = zipf.sample()
+                    numberOfEvents += zipfian
+                    val randomString = key.toString
+                    key += 1
+                    (1 to zipfian).map(_ => randomString).toIterator
+                  } else {
+                    Iterator.empty
+                  }
                 }
-            })
+              })
           }}.toList)
         }
       }
