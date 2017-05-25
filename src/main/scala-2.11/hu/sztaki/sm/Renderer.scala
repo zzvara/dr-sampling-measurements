@@ -1,218 +1,207 @@
 package hu.sztaki.sm
 
-import com.quantifind.charts.highcharts.Highchart.traversableToTraversableSeries
+import com.jogamp.opengl.util.gl2.GLUT
 import hu.sztaki.sm.Baseline.Configuration
-import org.scalajs
-import org.scalajs.dom
-import org.scalajs.dom.ext.Ajax
+import org.json4s.DefaultFormats
+import org.jzy3d.chart.AWTChart
+import org.jzy3d.colors.colormaps.ColorMapRainbow
+import org.jzy3d.colors.{Color, ColorMapper}
+import org.jzy3d.maths
+import org.jzy3d.maths.Coord3d
+import org.jzy3d.maths.algorithms.interpolation.algorithms.BernsteinInterpolator
+import org.jzy3d.plot3d.builder.concrete.OrthonormalGrid
+import org.jzy3d.plot3d.builder.{Builder, Mapper}
+import org.jzy3d.plot3d.primitives.axes.AxeBox
+import org.jzy3d.plot3d.rendering.canvas.Quality
+import org.jzy3d.plot3d.text.renderers.TextBitmapRenderer
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.scalajs.js.{JSApp, JSON, isUndefined}
-import scala.scalajs.js.annotation.JSExport
-import scala.util.{Failure, Success}
-import scalatags.Text.all._
+import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
+import scala.io.Source
 
-@JSExport
 case class Conceptier(
+  override val method: String,
   override val K: Int,
   override val dataset: String,
   configuration: Configuration.Conceptier,
   override val results: List[Result])
-extends Record(K, dataset, results)
+extends Record(method, K, dataset, results)
 
-@JSExport
 case class Naiv(
+  override val method: String,
   override val K: Int,
   override val dataset: String,
   configuration: Configuration.Naive,
   override val results: List[Result])
-extends Record(K, dataset, results)
+extends Record(method, K, dataset, results)
 
-@JSExport
 case class Lossy(
+  override val method: String,
   override val K: Int,
   override val dataset: String,
   configuration: Configuration.Lossy,
   override val results: List[Result])
-extends Record(K, dataset, results)
+extends Record(method, K, dataset, results)
 
-@JSExport
 case class Etalon(
+  override val method: String,
   override val K: Int,
   override val dataset: String,
   histogram: Map[String, Double])
-extends Record(K, dataset, List.empty)
+extends Record(method, K, dataset, List.empty)
 
-@JSExport
 case class Result(
   runtime: Long,
   width: List[Int],
-  histogram: Map[String, Double])
+  histogram: Map[String, Double]) {
+  def this(runtime: Long, histogram: List[Map[String, Double]], width: List[Int]) = {
+    this(runtime, width, histogram.fold(Map[String, Double]())(_ ++ _))
+  }
+  def this(runtime: Long, histogram: Map[String, Double], width: Int) = {
+    this(runtime, List(width), histogram)
+  }
+  def this(runtime: Long, histogram: List[Map[String, Double]], width: Int) = {
+    this(runtime, List(width), histogram.fold(Map[String, Double]())(_ ++ _))
+  }
+}
 
-class Record(val K: Int, val dataset: String, val results: List[Result]) extends Serializable
+class Record(val method: String, val K: Int, val dataset: String, val results: List[Result]) extends Serializable
 
-@JSExport
-object Renderer extends JSApp {
-  @JSExport
-  def main() = {
-    def parseAndRender(log: String): Unit = {
-      val rendered = log.lines.filter(_.startsWith("{")).toList
+import org.json4s._
+import org.json4s.native.JsonMethods._
 
-      dom.console.log(s"Total of [${rendered.length}] JSON rows found.")
+object Renderer {
+  def main(arguments: Array[String]) = {
+    implicit val format = DefaultFormats + new FieldSerializer[Result](
+      FieldSerializer.renameTo("histogram", "top-k"),
+      FieldSerializer.renameFrom("top-k", "histogram").orElse(
+        FieldSerializer.renameFrom("widthHistory", "width")
+      )
+    ) + new CustomSerializer[Result]((formats: Formats) => ({
+      case o: JObject =>
+        implicit val localFormat = DefaultFormats
+        new Result(
+          (o \ "runtime").extract[Long],
+          (o \ "histogram").extract[List[Map[String, Double]]],
+          (o \ "width") match {
+            case JInt(i) => List[Int](i.toInt)
+            case a: JArray => a.extract[List[Int]]
+            case JNothing =>
+              (o \ "widthHistory") match {
+                case JInt(i) => List[Int](i.toInt)
+                case a: JArray => a.extract[List[Int]]
+              }
+          }
+        )
+    },{
+      case r: Result =>
+        implicit val localFormat = DefaultFormats
+        Extraction.decompose(r)(localFormat)
+    }))
 
-      val sortedResults = rendered.map { input =>
-        val json = input.replace("&quot;", "\"")
-        val parsed = JSON.parse(json)
+    val data = Source
+      .fromFile(arguments(0))
+      .getLines()
+      .filter(_.startsWith("{"))
+      .map {
+        l => {
+          val json = parse(s"""$l""")
 
-        val method = parsed.method
-        if (!isUndefined(parsed.selectDynamic("etalon-top-k"))) {
-          Etalon(
-            parsed.k.toString.toInt,
-            parsed.dataset.toString,
-            parsed
-              .selectDynamic("etalon-top-k")
-              .asInstanceOf[scala.scalajs.js.Array[scala.scalajs.js.Dynamic]].flatMap {
-                entry => entry.asInstanceOf[scala.scalajs.js.Dictionary[Double]].toMap
-              }.toMap
-          )
-        } else if (parsed.method.asInstanceOf[String] == "lossy") {
-          Lossy(
-            parsed.K.toString.toInt,
-            parsed.dataset.toString,
-            Configuration.Lossy(
-              parsed.configuration.frequency.toString.toDouble,
-              parsed.configuration.error.toString.toDouble
-            ),
-            parsed.results.asInstanceOf[scala.scalajs.js.Array[scala.scalajs.js.Dynamic]].map {
-              result => Result(
-                result.runtime.toString.toLong,
-                List(result.width.toString.toInt),
-                result.selectDynamic("top-k").asInstanceOf[scala.scalajs.js.Array[scala.scalajs.js.Dynamic]].flatMap {
-                  entry => entry.asInstanceOf[scala.scalajs.js.Dictionary[Double]].toMap
-                }.toMap
+          json \ "method" match {
+            case JString("lossy") =>
+              Lossy(
+                (json \ "method").extract[String],
+                (json \ "K").extract[Int],
+                (json \ "dataset").extract[String],
+                (json \ "configuration").extract[Configuration.Lossy],
+                (json \ "results").extract[List[Result]]
               )
-            }.toList
-          )
-        } else if (parsed.method.asInstanceOf[String] == "conceptier") {
-          Conceptier(
-            parsed.K.toString.toInt,
-            parsed.dataset.toString,
-            Configuration.Conceptier(
-              parsed.K.toString.toInt,
-              parsed.configuration.sizeBoundary.toString.toInt,
-              parsed.configuration.backoffFactor.toString.toDouble,
-              parsed.configuration.hardBoundary.toString.toInt,
-              parsed.configuration.compaction.toString.toInt,
-              parsed.configuration.driftBoundary.toString.toDouble,
-              parsed.configuration.conceptSolidarity.toString.toInt,
-                parsed.configuration.driftHistoryWeight.toString.toDouble
-            ),
-            parsed.results.asInstanceOf[scala.scalajs.js.Array[scala.scalajs.js.Dynamic]].map {
-              result => Result(
-                result.runtime.toString.toLong,
-                result.widthHistory.asInstanceOf[scala.scalajs.js.Array[scala.scalajs.js.Dynamic]].map(_.toString.toInt).toList,
-                result.selectDynamic("top-k").asInstanceOf[scala.scalajs.js.Array[scala.scalajs.js.Dynamic]].flatMap {
-                  entry => entry.asInstanceOf[scala.scalajs.js.Dictionary[Double]].toMap
-                }.toMap
+            case JString("naiv") =>
+              json.extract[Naiv]
+            case JString("conceptier") =>
+              json.extract[Conceptier]
+            case JString("etalon") =>
+              Etalon(
+                (json \ "method").extract[String],
+                (json \ "k").extract[Int],
+                (json \ "dataset").extract[String],
+                (json \ "etalon-top-k").extract[List[Map[String, Double]]]
+                  .fold(Map[String, Double]())(_ ++ _)
               )
-            }.toList
-          )
+          }
         }
       }
-      .groupBy(_.asInstanceOf[Record].K)
-        .map {
-          groupForK =>
-            (groupForK._1, groupForK._2.groupBy(_.asInstanceOf[Record].dataset)
-              .map {
-                groupForDataset =>
-                  (
-                    groupForDataset._1,
-                    groupForDataset._2.groupBy(_.getClass.getName)
-                  )
-              }
-            )
-        }
+      .toList
 
-      val finalTable = sortedResults.map {
-        groupForK =>
-          div(
-            span(groupForK._1),
-            div(
-              groupForK._2.map { groupForDataset =>
-                div(
-                  span(groupForDataset._1),
-                  table(
-                    tr(
-                      td("configuration"),
-                      td("runtime max"),
-                      td("runtime avg"),
-                      td("runtime min"),
-                      td("memory max"),
-                      td("memory avg"),
-                      td("memory min"),
-                      td("error max"),
-                      td("error avg"),
-                      td("error min")
-                    ) {
-                    var etalon: Etalon = null
-                    var normedEtalon: Seq[(String, BigDecimal)] = null
-                    groupForDataset._2.map { groupForType =>
-                      groupForType._2.map {
-                        case l: Etalon =>
-                          etalon = l
-                          normedEtalon = etalon.histogram.toSeq.sortBy(-_._2)
-                            .map(p => (p._1, BigDecimal(p._2)))
-                          tr(
-
-                          )
-                        case l: Lossy =>
-                          val errors = l.results.map(_.histogram).map {
-                            h => error(h, normedEtalon)
-                          }
-                          tr(
-                            td(l.configuration.toString),
-                            td(l.results.map(_.runtime).max),
-                            td(l.results.map(_.runtime).sum / l.results.length),
-                            td(l.results.map(_.runtime).min),
-                            td(l.results.map(_.width.head).max),
-                            td(l.results.map(_.width.head).sum / l.results.length),
-                            td(l.results.map(_.width.head).min),
-                            td(errors.max.toString),
-                            td((errors.sum / errors.length).toString),
-                            td(errors.min.toString)
-                          )
-                      }
-                    }.toList
-                  })
-                )
-              }.toList
-            )
+    val map = data.filter {
+      r => r.dataset.startsWith("ZIPF") && r.method == "naiv"
+    }.map {
+      r =>
+        (
+          r.dataset.split("-").drop(1).head.toDouble,
+          (
+            r.K.toDouble,
+            r.results.map(_.runtime).sum.toDouble / r.results.size.toDouble
           )
-      }.map(_.render).mkString(" ")
-
-      dom.console.log("Rendered.")
-
-      dom.document.getElementById("Content").innerHTML = finalTable
+        )
+    }
+    .groupBy {
+      _._1
+    }
+    .map {
+      group =>
+        (group._1, group._2.map(_._2).toMap)
     }
 
-    Ajax.get(
-      url = "/dr-sampling-measurements/measurements-1.txt",
-      headers = Map("Content-Type" -> "text; charset=UTF-8"),
-      responseType = "text"
+    val mapper = new Mapper {
+      override def f(x: Double, y: Double) = {
+        map(x / 4)(y)
+      }
+    }
+
+    val kRange = new maths.Range(25, 525)
+    val exponentRange = new maths.Range(1 * 4, 3 * 4)
+
+    val surface = Builder.buildOrthonormal(new OrthonormalGrid(
+      exponentRange, 9, kRange, 11), mapper
     )
-    .onComplete {
-      case Success(success) =>
-        dom.console.log("Loaded.")
-        dom.console.log(success.responseText.size)
-        parseAndRender(success.responseText)
-      case Failure(failure) =>
-        dom.console.log(failure.getCause.getMessage)
-        scalajs.dom.window.alert(failure.getCause.getMessage)
+
+    /*
+    val surface = Builder.buildDelaunay {
+      val dataPoints = (1.0 to 3.0 by 0.25).flatMap {
+        x => (25 to 525 by 50).map {
+          y => new Coord3d(x, y.toDouble, map(x)(y.toDouble))
+        }
+      }.toList.asJava
+      new BernsteinInterpolator().interpolate(dataPoints, 3)
     }
+    */
+
+    surface.setColorMapper(new ColorMapper(
+      new ColorMapRainbow(), surface.getBounds.getZRange)
+    )
+    surface.setFaceDisplayed(true)
+    surface.setWireframeDisplayed(false)
+    surface.setWireframeColor(Color.BLACK)
+
+    // Create a chart and add the surface
+    val chart = new AWTChart(Quality.Advanced)
+    chart.add(surface)
+    chart.getAxeLayout.setXAxeLabel("exponent")
+    chart.getAxeLayout.setYAxeLabel("k")
+    chart.getAxeLayout.setZAxeLabel("runtime")
+    chart.getAWTView.getAxe.asInstanceOf[AxeBox].setTextRenderer(
+      new TextBitmapRenderer() {
+        fontHeight = 100
+        font = GLUT.BITMAP_HELVETICA_18
+      }
+    )
+    chart.open("Jzy3d Demo", 600, 600)
+
+    ()
   }
 
-
-  def error(histogram: Map[String, Double], reference: Seq[(Any, BigDecimal)]): BigDecimal = {
+  def error(histogram: Map[String, Double], reference: Seq[(AnyRef, BigDecimal)]): BigDecimal = {
     val currentTopK =
       histogram.toSeq.sortBy(-_._2).map(p => (p._1, BigDecimal(p._2)))
 

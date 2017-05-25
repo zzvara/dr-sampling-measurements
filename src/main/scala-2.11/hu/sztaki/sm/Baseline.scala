@@ -284,7 +284,7 @@ object Baseline {
       */
     val zipfians = {
       for (
-        exponent <- 1.0 to 3.0 by 0.25;
+        exponent <- 1.0 to 3.0 by 0.1;
         cardinality <- List(1000)
       ) yield {
         () => {
@@ -312,7 +312,7 @@ object Baseline {
 
     val drifted = {
       for (
-        exponent <- 1.0 to 3.0 by 0.25;
+        exponent <- 1.0 to 3.0 by 0.1;
         cardinality <- List(1000)
       ) yield {
         () => {
@@ -353,7 +353,7 @@ object Baseline {
       * Measurements.
       */
     for (
-      K <- (25 to 525 by 50);
+      K <- (25 to 525 by 25);
       generator <- zipfians ++ List(timeseries4K, timeseriesSorted, timeseriesRerverse, random) ++ drifted
     ) {
       println(s"K equals to [$K].")
