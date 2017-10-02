@@ -1,5 +1,6 @@
 package hu.sztaki.sm
 
+import com.github.fzakaria.topk.spacesaving.StreamSummary
 import com.github.tototoshi.csv.{CSVFormat, CSVReader, QUOTE_MINIMAL, Quoting}
 import frequencycount.lossycounting.LossyCountingModel
 import hu.sztaki.drc
@@ -9,6 +10,7 @@ import org.apache.commons.math3.distribution.ZipfDistribution
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
+import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
@@ -66,6 +68,15 @@ object Baseline {
         scala.runtime.ScalaRunTime._toString(this)
       }
     }
+
+    case class Spacey(
+      epsilon: Double = 0.01,
+      take: Int = 20)
+    extends Configuration {
+      override def toString: String = {
+        scala.runtime.ScalaRunTime._toString(this)
+      }
+    }
   }
 
   def run[T : Manifest](
@@ -74,6 +85,8 @@ object Baseline {
       rounds: Int = 10,
       runs: Int = 30): List[(Configuration.Configuration, Long, Map[Any, Double], Option[Any])] = {
     val methodFactory = configuration match {
+      case c: Configuration.Spacey =>
+        () => new StreamSummary[T](c.epsilon)
       case c: Configuration.Lossy =>
         () => new LossyCountingModel[T](c.frequency, c.error)
       case c: Configuration.Conceptier =>
@@ -109,19 +122,6 @@ object Baseline {
             c.histogramHardBoundary
           override protected val HISTOGRAM_COMPACTION: Int =
             c.histogramCompaction
-        }
-      case c: Adaptive =>
-        /**
-          * @todo Continue! Make adaptive an abstract class.
-          */
-        () => new hu.sztaki.drc.Adaptive(c.take, c.backoffFactor) {
-          HISTOGRAM_HARD_BOUNDARY = c.take * 2
-          override protected val MIN_MEMORY: Int = c.take * 16
-          override protected val DRIFT_BOUNDARY: Double = 1.0 / (2.0 * c.take.toDouble)
-          override protected val DRIFT_HISTORY_WEIGHT: Double = 0.8
-          override protected val GROW_FACTOR: Int = 2
-
-          driftHistory = DRIFT_BOUNDARY
         }
     }
 
@@ -161,10 +161,32 @@ object Baseline {
       }.asInstanceOf[Map[Any, Double]], Some(result.length))
     }
 
+    def measureSpacey[T](h: => Map[Any, Double], m: => StreamSummary[T])(f: => Unit): Unit = {
+      start = System.currentTimeMillis()
+
+      f
+      val result = h
+
+      end = System.currentTimeMillis()
+
+      runtime = end - start
+      results = results :+ (configuration, runtime, result, Some(m.getCapacity()))
+    }
+
     /**
       * Actually running the test.
       */
     configuration match {
+      case c: Configuration.Spacey =>
+        val method = methodFactory().asInstanceOf[StreamSummary[T]]
+        (1 to runs).foreach { _ => measureSpacey(
+          method.getTopK(c.take).asScala.map(i => i.getItem -> i.getValue.toDouble).toMap, method
+        ) {
+          (1 to rounds).foreach { _ =>
+            data.iterator.foreach(t => method.offer(t))
+          }
+        }
+        }
       case c: Configuration.Lossy =>
         val method = methodFactory().asInstanceOf[LossyCountingModel[T]]
         (1 to runs).foreach { _ =>
@@ -176,14 +198,6 @@ object Baseline {
         }
       case c: Configuration.Conceptier =>
         val method = methodFactory().asInstanceOf[drc.Conceptier]
-        (1 to runs).foreach { _ => measure(method.value, method) {
-            (1 to rounds).foreach { _ =>
-              data.iterator.foreach(t => method.add(t -> 1))
-            }
-          }
-        }
-      case c: Configuration.Adaptive =>
-        val method = methodFactory().asInstanceOf[drc.Adaptive]
         (1 to runs).foreach { _ => measure(method.value, method) {
             (1 to rounds).foreach { _ =>
               data.iterator.foreach(t => method.add(t -> 1))
@@ -390,6 +404,42 @@ object Baseline {
         }
       }
 
+
+      /**
+        * Running Spaceys.
+        */
+      for (epsilon <- List(0.1, 0.001, 0.0001, 0.00001)) {
+        val spacey = run(events, Configuration.Spacey(epsilon), 1, RUNS).drop(DROP)
+
+        println("Current Spacey stats:")
+        println(spacey.head._2)
+        println(spacey.head._3.size)
+
+        /**
+          * @note Print Lossy results.
+          */
+        println {
+          compact {
+            render {
+              ("method" -> "spacey") ~
+                ("K" -> K) ~
+                ("dataset" -> dataName) ~
+                ("configuration" -> (
+                  ("epsilon" -> epsilon)
+                  )) ~
+                ("results" ->
+                  spacey.map { r =>
+                    ("top-k" -> r._3.map(pair => (pair._1.toString, pair._2)).toSeq.sortBy(-_._2).take(K)) ~
+                      ("runtime" -> r._2) ~
+                      ("width" -> r._4.get.asInstanceOf[Int])
+                  }
+                  )
+            }
+          }
+        }
+      }
+
+
       /**
         * Running Lossys.
         */
@@ -425,7 +475,6 @@ object Baseline {
           }
         }
       }
-
 
       /**
         * Running Conceptiers.

@@ -2,8 +2,6 @@ package hu.sztaki.sm
 
 import org.apache.commons.math3.distribution.ZipfDistribution
 
-import scala.collection.mutable.ArrayBuffer
-
 object ZipfTest {
   def main(args: Array[String]): Unit = {
     val exponent = 1.0
