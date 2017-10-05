@@ -58,6 +58,14 @@ case class Naiv(
   override val results: List[Result])
 extends Record(method, K, dataset, results)
 
+case class Spacey(
+  override val method: String,
+  override val K: Int,
+  override val dataset: String,
+  configuration: Configuration.Spacey,
+  override val results: List[Result])
+extends Record(method, K, dataset, results)
+
 case class Lossy(
   override val method: String,
   override val K: Int,
@@ -207,6 +215,19 @@ object Renderer {
                     implicitly[Manifest[String]]),
                   (json \ "configuration").extract[Configuration.Lossy](format,
                     implicitly[Manifest[Configuration.Lossy]]),
+                  (json \ "results").extract[List[Result]](format,
+                    implicitly[Manifest[List[Result]]])
+                )
+              case JString("spacey") =>
+                Spacey(
+                  (json \ "method").extract[String](format,
+                    implicitly[Manifest[String]]),
+                  (json \ "K").extract[Int](format,
+                    implicitly[Manifest[Int]]),
+                  (json \ "dataset").extract[String](format,
+                    implicitly[Manifest[String]]),
+                  (json \ "configuration").extract[Configuration.Spacey](format,
+                    implicitly[Manifest[Configuration.Spacey]]),
                   (json \ "results").extract[List[Result]](format,
                     implicitly[Manifest[List[Result]]])
                 )
@@ -496,6 +517,18 @@ object Renderer {
 
       visualizeSurface(
         data.filter {
+          r => r.dataset.startsWith(datasetPrefix) && r.method == "spacey"
+        }.collect().toList,
+        ("exponent", "k", "runtime"),
+        (
+          (r: Record) => r.dataset.split("-").last.toDouble,
+          (r: Record) => r.K.toDouble,
+          (r: Record) => r.results.map(_.runtime).sum.toDouble / r.results.size.toDouble
+        )
+      )
+
+      visualizeSurface(
+        data.filter {
           r => r.dataset.startsWith(datasetPrefix) && r.method == "naiv"
         }.collect().toList,
         ("exponent", "k", "runtime"),
@@ -525,6 +558,22 @@ object Renderer {
       visualizeSurface(
         data.filter {
           r => r.dataset.startsWith(datasetPrefix) && r.method == "lossy"
+        }.collect().toList,
+        ("exponent", "k", "precision"),
+        (
+          (r: Record) => r.dataset.split("-").last.toDouble,
+          (r: Record) => r.K.toDouble,
+          (r: Record) => {
+            val etalon = etalons(r.K)(r.dataset)
+            (r.results.map {
+              result => error(result.histogram, etalon)
+            }.sum / r.results.size).toDouble
+          }
+        )
+      )
+      visualizeSurface(
+        data.filter {
+          r => r.dataset.startsWith(datasetPrefix) && r.method == "spacey"
         }.collect().toList,
         ("exponent", "k", "precision"),
         (
@@ -588,6 +637,17 @@ object Renderer {
       )
       visualizeSurface(
         data.filter {
+          r => r.dataset.startsWith(datasetPrefix) && r.method == "spacey"
+        }.collect().toList,
+        ("exponent", "k", "memory"),
+        (
+          (r: Record) => r.dataset.split("-").last.toDouble,
+          (r: Record) => r.K.toDouble,
+          (r: Record) => r.results.map(_.width.max).sum.toDouble / r.results.size.toDouble
+        )
+      )
+      visualizeSurface(
+        data.filter {
           r => r.dataset.startsWith(datasetPrefix) && r.method == "naiv"
         }.collect().toList,
         ("exponent", "k", "memory"),
@@ -622,7 +682,7 @@ object Renderer {
     def show2D(
       datasetPrefix: String,
       yName: String,
-      ySelector: (Record => List[Double], Record => List[Double], Record => List[Double]),
+      ySelector: (Record => List[Double], Record => List[Double], Record => List[Double], Record => List[Double]),
       yLog: Boolean = false,
       title: String = "whatever",
       withLossy: Boolean = true) = {
@@ -635,6 +695,9 @@ object Renderer {
       } else {
         List.empty[Record]
       }
+      val spacey = data.filter {
+        r => r.dataset.startsWith(datasetPrefix) && r.method == "spacey"
+      }.collect().toList
       val naiv = data.filter {
         r => r.dataset.startsWith(datasetPrefix) && r.method == "naiv"
       }.collect().toList
@@ -687,6 +750,11 @@ object Renderer {
       conceptier.foreach {
         n => chartDataset.add(
           ySelector._3(n).asJava, "drift resp", n.K.toString
+        )
+      }
+      spacey.foreach {
+        n => chartDataset.add(
+          ySelector._4(n).asJava, "spacey", n.K.toString
         )
       }
 
@@ -772,7 +840,7 @@ object Renderer {
     def show2DSpline(
                 datasetPrefix: String,
                 yName: String,
-                ySelector: (Record => List[Double], Record => List[Double], Record => List[Double]),
+                ySelector: (Record => List[Double], Record => List[Double], Record => List[Double], Record => List[Double]),
                 yLog: Boolean = false,
                 title: String = "whatever",
                 withLossy: Boolean = true) = {
@@ -789,6 +857,9 @@ object Renderer {
       }.collect().toList
       val conceptier = data.filter {
         r => r.dataset.startsWith(datasetPrefix) && r.method == "conceptier"
+      }.collect().toList
+      val spacey = data.filter {
+        r => r.dataset.startsWith(datasetPrefix) && r.method == "spacey"
       }.collect().toList
 
       val chartDataset = new XYSeriesCollection()
@@ -821,6 +892,15 @@ object Renderer {
           )
       }
       chartDataset.addSeries(conceptierData)
+      val spaceyData = new XYSeries("spacey")
+      spacey.groupBy(_.K).foreach {
+        group =>
+          val recordsMod = group._2.map(n => ySelector._4(n).sum / ySelector._4(n).size)
+          spaceyData.add(
+            recordsMod.sum / recordsMod.size, group._1.toDouble
+          )
+      }
+      chartDataset.addSeries(spaceyData)
 
       val renderer = new XYSplineRenderer()
       renderer.setBaseLegendTextFont(new Font("CMU Serif Roman", Font.ROMAN_BASELINE, fontSize))
@@ -887,6 +967,7 @@ object Renderer {
       (
         (r: Record) => r.results.map(_.runtime.toDouble),
         (r: Record) => r.results.map(_.runtime.toDouble),
+        (r: Record) => r.results.map(_.runtime.toDouble),
         (r: Record) => r.results.map(_.runtime.toDouble)
       ),
       title = "TS dataset"
@@ -896,6 +977,12 @@ object Renderer {
       "TS4K",
       "error (log scale, base 10)",
       (
+        (r: Record) => {
+          val etalon = etalons(r.K)(r.dataset)
+          r.results.map {
+            result => error(result.histogram, etalon).toDouble
+          }
+        },
         (r: Record) => {
           val etalon = etalons(r.K)(r.dataset)
           r.results.map {
@@ -932,7 +1019,8 @@ object Renderer {
           } else {
             result.histogram.size.toDouble
           }
-        }
+        },
+        (r: Record) => r.results.map(_.width.max.toDouble)
       ),
       yLog = true,
       title = "TS dataset"
