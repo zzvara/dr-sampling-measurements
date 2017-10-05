@@ -443,7 +443,7 @@ object Renderer {
       //chart.open("Jzy3d Demo", 1200, 1200)
     }
 
-
+/*
     def visualize4DScatter(
       data: List[Record],
       labels: (String, String, String, String),
@@ -497,6 +497,7 @@ object Renderer {
       ChartLauncher.openChart(chart)
       //chart.open("Jzy3d Demo", 1200, 1200)
     }
+    */
 
     def showZipf(datasetPrefix: String): Unit = {
 
